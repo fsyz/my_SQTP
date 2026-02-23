@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Post, Resource, Word, UserSuggestion, MistakeRecord } from './types';
-import { INITIAL_RESOURCES, INITIAL_WORDS, loadData, saveData } from './store';
+import { INITIAL_WORDS, loadData, saveData } from './store';
 import Login from './components/Login';
 import Forum from './components/Forum';
 import ResourcesSection from './components/ResourcesSection';
@@ -15,7 +15,7 @@ const App: React.FC = () => {
   // App States
   const [posts, setPosts] = useState<Post[]>([]);
   const [quote, setQuote] = useState(() => loadData('quote', '书山有路勤为径，学海无涯苦作舟。'));
-  const [resources, setResources] = useState<Resource[]>(() => loadData('resources', INITIAL_RESOURCES));
+  const [resources, setResources] = useState<Resource[]>([]);
   const [words, setWords] = useState<Word[]>(() => loadData('words', INITIAL_WORDS));
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>(() => loadData('suggestions', []));
   const [mistakes, setMistakes] = useState<MistakeRecord[]>(() => loadData('mistakes', []));
@@ -58,6 +58,23 @@ const App: React.FC = () => {
       })
       .catch(err => {
         console.error('获取帖子失败:', err);
+      });
+
+    // 获取学习资料列表
+    fetch('http://localhost:8000/resources')
+      .then(res => res.json())
+      .then(data => {
+        const mappedResources: Resource[] = data.map((item: any) => ({
+          id: String(item.id),
+          title: item.title,
+          module: item.module,
+          url: item.file_path,
+          date: item.created_at ? item.created_at.split('T')[0] : '',
+        }));
+        setResources(mappedResources);
+      })
+      .catch(err => {
+        console.error('获取资料失败:', err);
       });
   }, []);
 

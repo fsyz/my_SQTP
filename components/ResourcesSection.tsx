@@ -22,18 +22,50 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
   const [title, setTitle] = useState('');
   const [module, setModule] = useState('');
   const [suggestionText, setSuggestionText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleAddResource = () => {
-    if (!title || !module) return;
-    const newRes: Resource = {
-      id: Date.now().toString(),
-      title,
-      module,
-      url: '#',
-      date: new Date().toISOString().split('T')[0]
-    };
-    setResources([...resources, newRes]);
-    setShowAddResource(false);
+  const handleAddResource = async () => {
+    if (!title || !module || !selectedFile) {
+      alert('请填写完整信息并选择文件');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('module', module);
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch('http://localhost:8000/resources', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        alert('上传成功');
+        // 本地立即显示新资料
+        const newRes: Resource = {
+          id: Date.now().toString(),
+          title,
+          module,
+          url: '#',
+          date: new Date().toISOString().split('T')[0],
+        };
+        setResources([...resources, newRes]);
+
+        // 清空输入框并关闭弹窗
+        setTitle('');
+        setModule('');
+        setSelectedFile(null);
+        setShowAddResource(false);
+      } else {
+        const data = await res.json();
+        alert(data.detail || '上传失败，请稍后再试');
+      }
+    } catch (err) {
+      console.error('上传资料请求出错:', err);
+      alert('网络错误，请检查后端是否运行');
+    }
   };
 
   const handleSubmitSuggestion = () => {
@@ -51,8 +83,8 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
     alert('提交成功！管理员会尽快处理。');
   };
 
-  const filteredResources = activeModule === '所有' 
-    ? resources 
+  const filteredResources = activeModule === '所有'
+    ? resources
     : resources.filter(r => r.module === activeModule);
 
   const userMySuggestions = suggestions.filter(s => s.userId === user.id);
@@ -62,14 +94,14 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-          <button 
+          <button
             onClick={() => setActiveModule('所有')}
             className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${activeModule === '所有' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'}`}
           >
             所有
           </button>
           {modules.map(m => (
-            <button 
+            <button
               key={m}
               onClick={() => setActiveModule(m)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${activeModule === m ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'}`}
@@ -137,9 +169,17 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
             <div className="space-y-4">
               <input placeholder="资料名称" value={title} onChange={(e: any) => setTitle(e.target.value)} className="w-full p-2 border rounded-lg" />
               <input placeholder="所属模块 (如: 英语, 数学)" value={module} onChange={(e: any) => setModule(e.target.value)} className="w-full p-2 border rounded-lg" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+                <input
+                  type="file"
+                  onChange={(e: any) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => setShowAddResource(false)} className="px-4 py-2">取消</button>
+              <button onClick={() => { setShowAddResource(false); setSelectedFile(null); }} className="px-4 py-2">取消</button>
               <button onClick={handleAddResource} className="bg-blue-600 text-white px-6 py-2 rounded-lg">上传资料</button>
             </div>
           </div>
@@ -151,8 +191,8 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
           <div className="bg-white rounded-2xl w-full max-w-md p-6">
             <h3 className="text-xl font-bold mb-2">联系管理员</h3>
             <p className="text-sm text-gray-500 mb-4">您可以上传资料或提出您的宝贵意见。</p>
-            <textarea 
-              placeholder="您的意见或资料描述..." 
+            <textarea
+              placeholder="您的意见或资料描述..."
               value={suggestionText}
               onChange={(e: any) => setSuggestionText(e.target.value)}
               className="w-full p-3 border rounded-lg h-32"
