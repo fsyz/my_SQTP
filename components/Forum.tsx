@@ -14,7 +14,7 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
   const [isEditingQuote, setIsEditingQuote] = useState(false);
   const [tempQuote, setTempQuote] = useState(quote);
   const [showPostModal, setShowPostModal] = useState(false);
-  
+
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newLink, setNewLink] = useState('');
@@ -24,21 +24,47 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
     setIsEditingQuote(false);
   };
 
-  const handleCreatePost = () => {
+  const handleCreatePost = async () => {
     if (!newTitle || !newContent) return;
-    const newPost: Post = {
-      id: Date.now().toString(),
+
+    // 用 URLSearchParams 拼接查询参数
+    const params = new URLSearchParams({
       title: newTitle,
       content: newContent,
       author: '管理员',
-      link: newLink || undefined,
-      date: new Date().toISOString().split('T')[0]
-    };
-    setPosts([newPost, ...posts]);
-    setNewTitle('');
-    setNewContent('');
-    setNewLink('');
-    setShowPostModal(false);
+    });
+    if (newLink) {
+      params.append('link', newLink);
+    }
+
+    try {
+      const res = await fetch(`http://localhost:8000/forum/posts?${params.toString()}`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        // 请求成功，本地立即更新帖子列表
+        const newPost: Post = {
+          id: Date.now().toString(),
+          title: newTitle,
+          content: newContent,
+          author: '管理员',
+          link: newLink || undefined,
+          date: new Date().toISOString().split('T')[0],
+        };
+        setPosts([newPost, ...posts]);
+
+        // 清空输入框，关闭弹窗
+        setNewTitle('');
+        setNewContent('');
+        setNewLink('');
+        setShowPostModal(false);
+      } else {
+        console.error('发布帖子失败，状态码:', res.status);
+      }
+    } catch (err) {
+      console.error('发布帖子请求出错:', err);
+    }
   };
 
   return (
@@ -50,7 +76,7 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
           <div className="flex-1">
             <h3 className="text-sm font-bold text-orange-800 uppercase tracking-wider mb-2">每日励志</h3>
             {isEditingQuote ? (
-              <textarea 
+              <textarea
                 value={tempQuote}
                 onChange={(e: any) => setTempQuote(e.target.value)}
                 className="w-full p-2 border border-orange-300 rounded-lg focus:ring-orange-500 bg-white"
@@ -77,7 +103,7 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">讨论广场</h2>
         {isAdmin && (
-          <button 
+          <button
             onClick={() => setShowPostModal(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
           >
@@ -112,19 +138,19 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
           <div className="bg-white rounded-2xl w-full max-w-lg p-6">
             <h3 className="text-xl font-bold mb-4">发布帖子</h3>
             <div className="space-y-4">
-              <input 
+              <input
                 placeholder="标题"
                 value={newTitle}
                 onChange={(e: any) => setNewTitle(e.target.value)}
                 className="w-full p-2 border rounded-lg focus:ring-blue-500"
               />
-              <textarea 
+              <textarea
                 placeholder="内容..."
                 value={newContent}
                 onChange={(e: any) => setNewContent(e.target.value)}
                 className="w-full p-2 border rounded-lg h-32 focus:ring-blue-500"
               />
-              <input 
+              <input
                 placeholder="链接 (可选)"
                 value={newLink}
                 onChange={(e: any) => setNewLink(e.target.value)}

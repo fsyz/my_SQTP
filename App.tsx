@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Post, Resource, Word, UserSuggestion, MistakeRecord } from './types';
-import { INITIAL_POSTS, INITIAL_RESOURCES, INITIAL_WORDS, loadData, saveData } from './store';
+import { INITIAL_RESOURCES, INITIAL_WORDS, loadData, saveData } from './store';
 import Login from './components/Login';
 import Forum from './components/Forum';
 import ResourcesSection from './components/ResourcesSection';
@@ -13,7 +13,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('forum');
 
   // App States
-  const [posts, setPosts] = useState<Post[]>(() => loadData('posts', INITIAL_POSTS));
+  const [posts, setPosts] = useState<Post[]>([]);
   const [quote, setQuote] = useState(() => loadData('quote', '书山有路勤为径，学海无涯苦作舟。'));
   const [resources, setResources] = useState<Resource[]>(() => loadData('resources', INITIAL_RESOURCES));
   const [words, setWords] = useState<Word[]>(() => loadData('words', INITIAL_WORDS));
@@ -28,8 +28,9 @@ const App: React.FC = () => {
   useEffect(() => { saveData('suggestions', suggestions); }, [suggestions]);
   useEffect(() => { saveData('mistakes', mistakes); }, [mistakes]);
 
-  // 页面加载时，从后端获取每日励志名言
+  // 页面加载时，从后端获取每日励志名言 + 帖子列表
   useEffect(() => {
+    // 获取每日名言
     fetch('http://localhost:8000/forum/quote')
       .then(res => res.json())
       .then(data => {
@@ -39,6 +40,24 @@ const App: React.FC = () => {
       })
       .catch(err => {
         console.error('获取名言失败:', err);
+      });
+
+    // 获取帖子列表
+    fetch('http://localhost:8000/forum/posts')
+      .then(res => res.json())
+      .then(data => {
+        const mappedPosts: Post[] = data.map((item: any) => ({
+          id: String(item.id),
+          title: item.title,
+          content: item.content,
+          author: item.author,
+          link: item.link,
+          date: item.created_at ? item.created_at.split('T')[0] : '',
+        }));
+        setPosts(mappedPosts);
+      })
+      .catch(err => {
+        console.error('获取帖子失败:', err);
       });
   }, []);
 
