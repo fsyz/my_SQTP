@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserSuggestion } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface AdminPanelProps {
   suggestions: UserSuggestion[];
@@ -11,21 +12,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ suggestions, setSuggestions }) 
   const [replyText, setReplyText] = useState('');
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
-  const handleSendFeedback = (id: string) => {
+  // 页面加载时，从后端获取所有建议
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/admin/suggestions`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSuggestions(data);
+        }
+      })
+      .catch(err => console.error('获取建议列表失败:', err));
+  }, []);
+
+  const handleSendFeedback = async (id: string) => {
     if (!replyText) return;
-    setSuggestions(suggestions.map(s => 
-      s.id === id ? { ...s, feedback: replyText } : s
-    ));
-    setReplyText('');
-    setActiveReplyId(null);
-    alert('反馈已成功发送给用户。');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/suggestions/${id}/feedback?feedback=${encodeURIComponent(replyText)}`, {
+        method: 'PUT',
+      });
+
+      if (res.ok) {
+        setSuggestions(suggestions.map(s =>
+          s.id === id ? { ...s, feedback: replyText } : s
+        ));
+        setReplyText('');
+        setActiveReplyId(null);
+        alert('反馈已成功发送给用户。');
+      } else {
+        alert('发送反馈失败，请稍后再试');
+      }
+    } catch (err) {
+      console.error('发送反馈请求出错:', err);
+      alert('网络错误，请检查后端是否运行');
+    }
   };
 
   return (
     // Fixed: Changed 'class' back to 'className' for React
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">用户建议与资料投稿</h2>
-      
+
       <div className="grid gap-4">
         {suggestions.length === 0 && (
           <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
@@ -44,14 +71,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ suggestions, setSuggestions }) 
                 下载附件
               </button>
             </div>
-            
+
             <p className="text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-100 mb-4">{s.content}</p>
 
             {s.feedback ? (
               <div className="p-3 bg-green-50 rounded border-l-4 border-green-500">
                 <p className="text-xs font-bold text-green-800 mb-1">已给予回复：</p>
                 <p className="text-sm text-green-700">{s.feedback}</p>
-                <button 
+                <button
                   onClick={() => setActiveReplyId(s.id)}
                   className="mt-2 text-xs text-blue-600 hover:underline"
                 >
@@ -62,7 +89,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ suggestions, setSuggestions }) 
               <div>
                 {activeReplyId === s.id ? (
                   <div className="space-y-2">
-                    <textarea 
+                    <textarea
                       value={replyText}
                       onChange={(e: any) => setReplyText(e.target.value)}
                       placeholder="输入您的回复..."
@@ -75,7 +102,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ suggestions, setSuggestions }) 
                     </div>
                   </div>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => setActiveReplyId(s.id)}
                     className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-xs font-medium hover:bg-gray-200"
                   >
@@ -84,10 +111,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ suggestions, setSuggestions }) 
                 )}
               </div>
             )}
-            
+
             {activeReplyId === s.id && s.feedback && (
-               <div className="mt-4 space-y-2">
-                <textarea 
+              <div className="mt-4 space-y-2">
+                <textarea
                   value={replyText}
                   onChange={(e: any) => setReplyText(e.target.value)}
                   placeholder="修改回复内容..."

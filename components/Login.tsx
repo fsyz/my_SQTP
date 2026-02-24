@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -25,7 +26,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     formData.append('password', password);
 
     try {
-      const res = await fetch('http://localhost:8000/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         body: formData,
       });
@@ -65,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     formData.append('password', password);
 
     try {
-      const res = await fetch('http://localhost:8000/auth/register', {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         body: formData,
       });
@@ -79,7 +80,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         loginForm.append('username', username);
         loginForm.append('password', password);
 
-        const loginRes = await fetch('http://localhost:8000/auth/login', {
+        const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
           method: 'POST',
           body: loginForm,
         });

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Resource, User, UserSuggestion, UserRole } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface ResourcesProps {
   resources: Resource[];
@@ -36,7 +37,7 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://localhost:8000/resources', {
+      const res = await fetch(`${API_BASE_URL}/resources`, {
         method: 'POST',
         body: formData,
       });
@@ -77,7 +78,7 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
     });
 
     try {
-      const res = await fetch(`http://localhost:8000/suggestions?${params.toString()}`, {
+      const res = await fetch(`${API_BASE_URL}/suggestions?${params.toString()}`, {
         method: 'POST',
       });
 

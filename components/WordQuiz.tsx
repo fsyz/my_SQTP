@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Word, MistakeRecord } from '../types';
+import { Word, MistakeRecord, User } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface WordQuizProps {
   words: Word[];
@@ -8,9 +9,10 @@ interface WordQuizProps {
   mistakes: MistakeRecord[];
   setMistakes: React.Dispatch<React.SetStateAction<MistakeRecord[]>>;
   isAdmin: boolean;
+  user: User;
 }
 
-const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMistakes, isAdmin }) => {
+const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMistakes, isAdmin, user }) => {
   const [view, setView] = useState<'selection' | 'quiz' | 'mistakes' | 'admin'>('selection');
   const [activeModule, setActiveModule] = useState<string>('');
   const [quizWords, setQuizWords] = useState<Word[]>([]);
@@ -24,18 +26,43 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
   const [showFirst, setShowFirst] = useState(false);
   const [showPOS, setShowPOS] = useState(false);
   const [showIPA, setShowIPA] = useState(false);
+  const [uploadModule, setUploadModule] = useState('');
 
-  // Explicitly typing modules as string[] to fix 'unknown' type error in map
-  const modules: string[] = Array.from(new Set(words.map(w => w.module)));
+  // 后端没有提供模块列表接口，所以硬编码
+  const availableModules: string[] = ['考研词汇', '雅思词汇', '四级词汇'];
 
-  const startQuiz = (moduleName: string) => {
-    const filtered = words.filter(w => w.module === moduleName);
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    setQuizWords(shuffled);
-    setCurrentIndex(0);
-    setActiveModule(moduleName);
-    setView('quiz');
-    resetTurn();
+  const startQuiz = async (moduleName: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/words/quiz?module=${encodeURIComponent(moduleName)}&limit=50`);
+      const data = await res.json();
+
+      if (!Array.isArray(data) || data.length === 0) {
+        alert('该模块暂无单词！');
+        return;
+      }
+
+      // 字段映射：后端 id 是数字，前端要字符串
+      const mapped: Word[] = data.map((item: any) => ({
+        id: String(item.id),
+        english: item.english,
+        chinese: item.chinese,
+        pos: item.pos,
+        ipa: item.ipa,
+        module: item.module,
+      }));
+
+      // 随机打乱
+      const shuffled = mapped.sort(() => Math.random() - 0.5);
+
+      setQuizWords(shuffled);
+      setCurrentIndex(0);
+      setActiveModule(moduleName);
+      setView('quiz');
+      resetTurn();
+    } catch (err) {
+      console.error('获取单词失败:', err);
+      alert('网络错误，请检查后端是否运行');
+    }
   };
 
   const resetTurn = () => {
@@ -44,7 +71,7 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
     setIsCorrect(false);
   };
 
-  const handleCheck = () => {
+  const handleCheck = async () => {
     const current = quizWords[currentIndex];
     const correct = userInput.trim().toLowerCase() === current.english.toLowerCase();
     setIsCorrect(correct);
@@ -53,6 +80,11 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
     if (!correct) {
       const isAlreadyInMistakes = mistakes.find(m => m.wordId === current.id);
       if (!isAlreadyInMistakes) {
+        // 同时发送到后端 + 本地更新
+        fetch(`${API_BASE_URL}/mistakes?user_id=${user.id}&word_id=${current.id}`, {
+          method: 'POST',
+        }).catch(err => console.error('添加错题失败:', err));
+
         setMistakes([{
           id: Date.now().toString(),
           wordId: current.id,
@@ -74,13 +106,65 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
     }
   };
 
-  const removeMistake = (id: string) => {
-    setMistakes(mistakes.filter(m => m.id !== id));
+  const removeMistake = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/mistakes/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setMistakes(mistakes.filter(m => m.id !== id));
+      } else {
+        alert('删除失败，请稍后再试');
+      }
+    } catch (err) {
+      console.error('删除错题请求出错:', err);
+    }
   };
 
-  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Simulated Excel/CSV upload
-    alert('批量上传成功！模拟数据已导入。');
+  // 每次进入错题本时，从后端拉取最新数据
+  useEffect(() => {
+    if (view === 'mistakes') {
+      fetch(`${API_BASE_URL}/mistakes/${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setMistakes(data);
+          }
+        })
+        .catch(err => console.error('获取错题本失败:', err));
+    }
+  }, [view]);
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadModule) {
+      alert('请输入模块名称并选择文件');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('module', uploadModule);
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/words/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.message || '上传成功！');
+        setUploadModule('');
+        e.target.value = ''; // 清空 file input，方便重复上传同名文件
+      } else {
+        alert(data.detail || '上传失败，请检查 Excel 格式');
+      }
+    } catch (err) {
+      console.error('上传单词请求出错:', err);
+      alert('网络错误，请检查后端是否运行');
+    }
   };
 
   return (
@@ -98,11 +182,11 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
 
       {view === 'selection' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {modules.map((m: string) => (
+          {availableModules.map((m: string) => (
             <div key={m} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
               <h4 className="text-xl font-bold mb-4">{m}</h4>
-              <p className="text-gray-500 text-sm mb-6">共 {words.filter(w => w.module === m).length} 个单词</p>
-              <button 
+              <p className="text-gray-500 text-sm mb-6">点击开始测试</p>
+              <button
                 onClick={() => startQuiz(m)}
                 className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700"
               >
@@ -149,16 +233,15 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
             </div>
 
             <div className="space-y-4">
-              <input 
+              <input
                 autoFocus
                 type="text"
                 value={userInput}
                 onChange={(e: any) => setUserInput(e.target.value)}
                 disabled={isAnswered}
                 placeholder="请输入对应的英文单词..."
-                className={`w-full text-center text-2xl p-4 border-2 rounded-xl focus:outline-none transition-all ${
-                  isAnswered ? (isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700') : 'border-gray-200 focus:border-blue-500'
-                }`}
+                className={`w-full text-center text-2xl p-4 border-2 rounded-xl focus:outline-none transition-all ${isAnswered ? (isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700') : 'border-gray-200 focus:border-blue-500'
+                  }`}
                 onKeyDown={(e: any) => e.key === 'Enter' && !isAnswered && handleCheck()}
               />
 
@@ -215,15 +298,28 @@ const WordQuiz: React.FC<WordQuizProps> = ({ words, setWords, mistakes, setMista
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="text-lg font-bold mb-4">批量上传单词 (Excel/CSV)</h3>
-            <div className="flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-32 hover:border-blue-400 transition-colors">
-              <label className="cursor-pointer text-center">
-                <svg className="mx-auto h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                <span className="mt-2 block text-sm font-medium text-gray-900">点击上传或拖拽 Excel 文件</span>
-                <input type="file" className="sr-only" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} />
-              </label>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">模块名称</label>
+                <input
+                  type="text"
+                  placeholder="输入模块名称（如：考研词汇）"
+                  value={uploadModule}
+                  onChange={(e: any) => setUploadModule(e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <p className="text-blue-600 text-xs font-medium">💡 支持上传无表头的3列文件 (.csv, .xls, .xlsx)：第一列单词，第二列音标，第三列词性与中文（如 vt.放弃）。</p>
+              <div className="flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg h-32 hover:border-blue-400 transition-colors">
+                <label className="cursor-pointer text-center">
+                  <svg className="mx-auto h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  <span className="mt-2 block text-sm font-medium text-gray-900">点击上传或拖拽 Excel 文件</span>
+                  <input type="file" className="sr-only" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} />
+                </label>
+              </div>
             </div>
           </div>
-          
+
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h3 className="text-lg font-bold mb-4">当前题库列表</h3>
             <div className="space-y-2">

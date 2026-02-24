@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole, Post, Resource, Word, UserSuggestion, MistakeRecord } from './types';
 import { INITIAL_WORDS, loadData, saveData } from './store';
+import { API_BASE_URL } from './config';
 import Login from './components/Login';
 import Forum from './components/Forum';
 import ResourcesSection from './components/ResourcesSection';
@@ -31,7 +32,7 @@ const App: React.FC = () => {
   // 页面加载时，从后端获取每日励志名言 + 帖子列表
   useEffect(() => {
     // 获取每日名言
-    fetch('http://localhost:8000/forum/quote')
+    fetch(`${API_BASE_URL}/forum/quote`)
       .then(res => res.json())
       .then(data => {
         if (data.content) {
@@ -43,7 +44,7 @@ const App: React.FC = () => {
       });
 
     // 获取帖子列表
-    fetch('http://localhost:8000/forum/posts')
+    fetch(`${API_BASE_URL}/forum/posts`)
       .then(res => res.json())
       .then(data => {
         const mappedPosts: Post[] = data.map((item: any) => ({
@@ -61,7 +62,7 @@ const App: React.FC = () => {
       });
 
     // 获取学习资料列表
-    fetch('http://localhost:8000/resources')
+    fetch(`${API_BASE_URL}/resources`)
       .then(res => res.json())
       .then(data => {
         const mappedResources: Resource[] = data.map((item: any) => ({
@@ -96,26 +97,26 @@ const App: React.FC = () => {
               <div className="hidden md:flex space-x-4">
                 <button
                   onClick={() => setActiveTab('forum')}
-                  className={`px-3 py-2 text-sm font-medium ${activeTab === 'forum' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px - 3 py - 2 text - sm font - medium ${activeTab === 'forum' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   论坛区
                 </button>
                 <button
                   onClick={() => setActiveTab('resources')}
-                  className={`px-3 py-2 text-sm font-medium ${activeTab === 'resources' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px - 3 py - 2 text - sm font - medium ${activeTab === 'resources' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   资料区
                 </button>
                 <button
                   onClick={() => setActiveTab('quiz')}
-                  className={`px-3 py-2 text-sm font-medium ${activeTab === 'quiz' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px - 3 py - 2 text - sm font - medium ${activeTab === 'quiz' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'} `}
                 >
                   单词默写器
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => setActiveTab('admin')}
-                    className={`px-3 py-2 text-sm font-medium ${activeTab === 'admin' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`px - 3 py - 2 text - sm font - medium ${activeTab === 'admin' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'} `}
                   >
                     后台管理
                   </button>
@@ -163,6 +164,7 @@ const App: React.FC = () => {
             mistakes={mistakes}
             setMistakes={setMistakes}
             isAdmin={isAdmin}
+            user={user}
           />
         )}
         {activeTab === 'admin' && isAdmin && (

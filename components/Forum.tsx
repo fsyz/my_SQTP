@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Post } from '../types';
+import { API_BASE_URL } from '../config';
 
 interface ForumProps {
   posts: Post[];
@@ -38,7 +39,7 @@ const Forum: React.FC<ForumProps> = ({ posts, setPosts, quote, setQuote, isAdmin
     }
 
     try {
-      const res = await fetch(`http://localhost:8000/forum/posts?${params.toString()}`, {
+      const res = await fetch(`${API_BASE_URL}/forum/posts?${params.toString()}`, {
         method: 'POST',
       });
 

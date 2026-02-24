@@ -9,6 +9,7 @@ import backend_models as models
 from backend_database import engine, get_db
 from passlib.context import CryptContext
 import datetime
+import re
 
 # 初始化数据库
 models.Base.metadata.create_all(bind=engine)
@@ -122,7 +123,21 @@ def submit_suggestion(user_id: int, content: str, db: Session = Depends(get_db))
 
 @app.get("/admin/suggestions")
 def admin_get_suggestions(db: Session = Depends(get_db)):
-    return db.query(models.UserSuggestion).all()
+    entries = db.query(models.UserSuggestion, models.User).outerjoin(
+        models.User, models.UserSuggestion.user_id == models.User.id
+    ).all()
+    result = []
+    for sug, user in entries:
+        result.append({
+            "id": str(sug.id),
+            "userId": str(sug.user_id),
+            "phone": user.phone if user else "未知",
+            "content": sug.content or "",
+            "fileUrl": sug.file_path or "",
+            "feedback": sug.feedback or "",
+            "date": sug.created_at.strftime("%Y-%m-%d") if sug.created_at else "",
+        })
+    return result
 
 @app.put("/admin/suggestions/{sug_id}/feedback")
 def admin_feedback(sug_id: int, feedback: str, db: Session = Depends(get_db)):
@@ -136,20 +151,50 @@ def admin_feedback(sug_id: int, feedback: str, db: Session = Depends(get_db)):
 
 @app.post("/words/upload")
 async def upload_words_excel(module: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
-    # 读取 Excel
-    df = pd.read_excel(file.file)
-    # 假设 Excel 列为: english, chinese, pos, ipa
+    # 根据文件后缀选择读取方式
+    filename = (file.filename or '').lower()
+    if filename.endswith('.csv'):
+        df = pd.read_csv(file.file, header=None)
+    elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+        df = pd.read_excel(file.file, header=None)
+    else:
+        raise HTTPException(status_code=400, detail="不支持的文件格式，仅支持 csv/xls/xlsx")
+    count = 0
     for _, row in df.iterrows():
+        # 取第一列作为英文单词
+        english = str(row[0]).strip() if pd.notna(row[0]) else ''
+        
+        # 跳过表头行或无效行（包含中文的第一列、或者叫 english / 单词）
+        if not english or english.lower() in ('english', '单词') or re.search(r'[\u4e00-\u9fff]', english):
+            continue
+        
+        # 第 1 列是音标
+        ipa = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ''
+        
+        # 第 2 列是混合了词性和中文释义的内容
+        raw_chinese = str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else ''
+        
+        # 智能拆分词性与中文释义
+        # 例如 "vt.离弃，放弃" → pos="vt.", chinese="离弃，放弃"
+        # 例如 "n.&vt. 放弃" → pos="n.&vt.", chinese="放弃"
+        pos = ''
+        chinese = raw_chinese
+        match = re.match(r'^([a-zA-Z\s&\.,]+\.)\s*(.*)', raw_chinese)
+        if match:
+            pos = match.group(1).strip()
+            chinese = match.group(2).strip()
+        
         word = models.Word(
-            english=str(row['english']),
-            chinese=str(row['chinese']),
-            pos=str(row.get('pos', '')),
-            ipa=str(row.get('ipa', '')),
+            english=english,
+            chinese=chinese,
+            pos=pos,
+            ipa=ipa,
             module=module
         )
         db.add(word)
+        count += 1
     db.commit()
-    return {"message": f"成功从 {file.filename} 导入单词到模块 {module}"}
+    return {"message": f"成功从 {file.filename} 导入 {count} 个单词到模块 {module}"}
 
 @app.get("/words/quiz")
 def get_quiz_words(module: str, limit: int = 20, db: Session = Depends(get_db)):
@@ -164,7 +209,17 @@ def add_to_mistake_book(user_id: int, word_id: int, db: Session = Depends(get_db
 
 @app.get("/mistakes/{user_id}")
 def get_mistakes(user_id: int, db: Session = Depends(get_db)):
-    return db.query(models.MistakeBook).filter(models.MistakeBook.user_id == user_id).all()
+    entries = db.query(models.MistakeBook).filter(models.MistakeBook.user_id == user_id).all()
+    result = []
+    for entry in entries:
+        result.append({
+            "id": str(entry.id),
+            "wordId": str(entry.word_id),
+            "english": entry.word.english if entry.word else "",
+            "chinese": entry.word.chinese if entry.word else "",
+            "date": entry.created_at.strftime("%Y-%m-%d") if entry.created_at else "",
+        })
+    return result
 
 @app.delete("/mistakes/{mistake_id}")
 def delete_mistake(mistake_id: int, db: Session = Depends(get_db)):
