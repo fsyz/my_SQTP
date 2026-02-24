@@ -68,19 +68,40 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
     }
   };
 
-  const handleSubmitSuggestion = () => {
+  const handleSubmitSuggestion = async () => {
     if (!suggestionText) return;
-    const newSuggestion: UserSuggestion = {
-      id: Date.now().toString(),
-      userId: user.id,
-      phone: user.phone || '管理员',
+
+    const params = new URLSearchParams({
+      user_id: user.id,
       content: suggestionText,
-      date: new Date().toISOString().split('T')[0]
-    };
-    setSuggestions([...suggestions, newSuggestion]);
-    setSuggestionText('');
-    setShowContactAdmin(false);
-    alert('提交成功！管理员会尽快处理。');
+    });
+
+    try {
+      const res = await fetch(`http://localhost:8000/suggestions?${params.toString()}`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        // 本地立即显示新建议
+        const newSuggestion: UserSuggestion = {
+          id: Date.now().toString(),
+          userId: user.id,
+          phone: user.phone || '管理员',
+          content: suggestionText,
+          date: new Date().toISOString().split('T')[0],
+        };
+        setSuggestions([...suggestions, newSuggestion]);
+        setSuggestionText('');
+        setShowContactAdmin(false);
+        alert('提交成功！管理员会尽快处理。');
+      } else {
+        const data = await res.json();
+        alert(data.detail || '提交失败，请稍后再试');
+      }
+    } catch (err) {
+      console.error('提交建议请求出错:', err);
+      alert('网络错误，请检查后端是否运行');
+    }
   };
 
   const filteredResources = activeModule === '所有'
