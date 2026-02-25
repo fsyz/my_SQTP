@@ -10,11 +10,13 @@ from backend_database import engine, get_db
 from passlib.context import CryptContext
 import datetime
 import re
+from fastapi.staticfiles import StaticFiles
 
 # 初始化数据库
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="学令教育 API")
+app.mount("/files", StaticFiles(directory="uploads"), name="files")
 
 # 跨域设置
 app.add_middleware(
@@ -98,19 +100,77 @@ def list_resources(module: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.Resource)
     if module:
         query = query.filter(models.Resource.module == module)
-    return query.all()
-
+    resources = query.all()
+    
+    # 关键修改：把文件路径转换成可访问的URL
+    result = []
+    for r in resources:
+        if r.file_path:
+            # 如果已经是 /files/ 开头，直接使用
+            if r.file_path.startswith('/files/'):
+                file_url = r.file_path
+            else:
+                # 否则，从路径中提取文件名，转换成 /files/ 开头的URL
+                import os
+                filename = os.path.basename(r.file_path)
+                file_url = f"/files/resources/{filename}"
+        else:
+            file_url = ""
+        
+        result.append({
+            "id": r.id,
+            "title": r.title,
+            "module": r.module,
+            "file_path": file_url,  # 现在返回的是可访问的URL
+            "created_at": r.created_at
+        })
+    
+    return result
 @app.post("/resources")
 async def upload_resource(title: str = Form(...), module: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_location = f"uploads/resources/{file.filename}"
-    os.makedirs(os.path.dirname(file_location), exist_ok=True)
-    with open(file_location, "wb+") as file_object:
-        file_object.write(file.file.read())
+    import os
+    from pathlib import Path
     
+    print("\n" + "="*50)
+    print("开始上传文件...")
+    
+    # 1. 获取当前文件所在目录
+    current_dir = Path(__file__).parent
+    print(f"当前目录: {current_dir}")
+    
+    # 2. 构建绝对路径
+    upload_dir = current_dir / "uploads" / "resources"
+    print(f"目标目录: {upload_dir}")
+    
+    # 3. 确保目录存在
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    print(f"目录是否存在: {upload_dir.exists()}")
+    
+    # 4. 保存文件
+    file_path = upload_dir / file.filename
+    print(f"文件保存到: {file_path}")
+    
+    content = await file.read()
+    print(f"文件大小: {len(content)} 字节")
+    
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # 5. 检查文件是否保存成功
+    if file_path.exists():
+        print(f"✅ 文件保存成功！大小: {file_path.stat().st_size} 字节")
+    else:
+        print("❌ 文件保存失败！")
+    
+    # 6. 保存到数据库（注意这里用的是相对路径，但没关系）
+    file_location = f"uploads/resources/{file.filename}"
     new_res = models.Resource(title=title, module=module, file_path=file_location)
     db.add(new_res)
     db.commit()
-    return {"message": "资料上传成功"}
+    
+    print("="*50 + "\n")
+    
+    return {"message": "资料上传成功", "file": file.filename}
 
 # --- 建议与反馈 ---
 

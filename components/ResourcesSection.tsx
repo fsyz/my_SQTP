@@ -142,23 +142,76 @@ const ResourcesSection: React.FC<ResourcesProps> = ({ resources, setResources, i
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredResources.map(res => (
-          <div key={res.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-50 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900">{res.title}</h4>
-                <p className="text-xs text-gray-500">{res.module} · {res.date}</p>
-              </div>
+  {filteredResources.map(res => {
+    // 判断文件类型
+    const isImage = res.url.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i);
+    const isPdf = res.url.match(/\.pdf$/i);
+    const isText = res.url.match(/\.(txt|md|js|ts|jsx|tsx|html|css|json)$/i);
+    
+    return (
+      <div key={res.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-3">
+            <div className="bg-blue-50 p-2 rounded-lg">
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
-            <a href={res.url} className="text-blue-600 hover:text-blue-800 p-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            </a>
+            <div>
+              <h4 className="font-semibold text-gray-900">{res.title}</h4>
+              <p className="text-xs text-gray-500">{res.module} · {res.date}</p>
+            </div>
           </div>
-        ))}
+          <div className="flex space-x-2">
+            {/* 预览按钮 - 只有可预览的文件才显示 */}
+            {(isImage || isPdf || isText) && (
+              <button
+                onClick={() => {
+                  const previewUrl = `${API_BASE_URL}${res.url}`;
+                  window.open(previewUrl, '_blank');
+                }}
+                className="text-green-600 hover:text-green-800 p-2"
+                title="预览"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            )}
+            {/* 下载按钮 - 带确认框 */}
+            <button
+              onClick={() => {
+                if (window.confirm(`确定要下载 "${res.title}" 吗？`)) {
+                  const downloadUrl = `${API_BASE_URL}${res.url}`;
+                  const link = document.createElement('a');
+                  link.href = downloadUrl;
+                  link.download = res.url.split('/').pop() || '下载';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }
+              }}
+              className="text-blue-600 hover:text-blue-800 p-2"
+              title="下载"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        {/* 文件类型提示 */}
+        <div className="text-xs text-gray-400 mt-1">
+          {isImage && '🖼️ 图片文件'}
+          {isPdf && '📄 PDF文档'}
+          {isText && '📝 文本文件'}
+          {!isImage && !isPdf && !isText && '📁 其他文件'}
+        </div>
       </div>
+    );
+  })}
+</div>
 
       {!isAdmin && userMySuggestions.length > 0 && (
         <div className="mt-12">
